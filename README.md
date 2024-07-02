@@ -2,7 +2,7 @@
 
 OpenZeppelin Ethernaut is an educational platform that provides interactive and gamified challenges to help users learn about Ethereum smart contract security. It is developed by OpenZeppelin, a company known for its security audits, tools, and best practices in the blockchain and Ethereum ecosystem.
 
-OpenZeppelin Ethernaut Website: [ethernaut.openzeppelin.com](ethernaut.openzeppelin.com)
+OpenZeppelin Ethernaut Website: [ethernaut.openzeppelin.com](https://ethernaut.openzeppelin.com/)
 
 <br>
 
